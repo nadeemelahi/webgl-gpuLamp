@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang = "en" >
+	<!--
+		author: Nadeem Elahi
+		private paid professional email : nad@3deem.com
+		public free social media email : nadeem.elahi@gmail.com
+		rogers mobile tel : 905-481-1294
+		COPYRIGHT March 2025 
+	-->
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width,initial-scale=1">
+		<title>Nadeem's WebGL 3D graphics library v 02</title>
+
+		<link rel="stylesheet" href="./j00_style.css">
+		<link rel="icon" type="image/x-icon" href="./favicon.ico">
+	</head>
+	<body>
+		<div id="fullscreenPage">
+
+			<div id="fsP_fsOverlay01">
+				<canvas id="fsCanvas" width="100px" height="100px"></canvas>
+			</div>
+
+			<div id="fsP_fsOverlay02">
+				<h1>overlay</h1>
+			</div>
+
+		</div>
+
+		<script id="vs_basic" type="x-shader/x-vertex">
+
+			uniform float pointSize ; 
+			attribute vec4 vertex ;
+			attribute vec4 fragment ;
+			varying vec4 v_fragment ;
+
+			void main ( void ) {
+
+				gl_PointSize = pointSize ;
+				gl_Position = vertex ;
+				v_fragment = fragment ;
+			}
+
+		</script>
+		<script id="fs_basic" type="x-shader/x-fragment">
+
+			precision mediump float ;
+			varying vec4 v_fragment ;
+
+			void main ( void ) {
+
+				gl_FragColor = v_fragment ;
+
+			}
+
+		</script>
+
+
+		<!-- gpu lamp shader -->
+
+		<script id="vs_lamp" type="x-shader/x-vertex">
+
+			uniform float pointSize ; 
+
+			attribute vec4 vertex012 , shufle120 , shufle201 ;
+
+			attribute vec4 fragment ;
+			varying vec4 v_fragment ;
+
+			uniform float x_angle , y_angle , z_angle ;
+			uniform float x_loc , y_loc , z_loc ;
+
+			float perspective ;
+			varying float v_perspective ;
+
+			float cosLamp ;
+			varying float v_cosLamp ;
+
+			void main ( void ) {
+
+				// point size
+				gl_PointSize = pointSize ;
+
+
+				// rotation x
+				float xAngle = radians( x_angle ) ;
+				float cx = cos( xAngle ) ;
+				float sx = sin( xAngle ) ;
+
+				mat4 rotateX = mat4 (
+
+				1.0  ,  0.0  ,  0.0  ,  0.0  ,
+				0.0  ,   cx  ,   sx  ,  0.0  ,
+				0.0  ,  -sx  ,   cx  ,  0.0  ,
+				0.0  ,  0.0  ,  0.0  ,  1.0 
+
+				) ;
+
+				// rotation y
+				float yAngle = radians( y_angle ) ;
+				float cy = cos(yAngle) ;
+				float sy = sin(yAngle) ;
+
+				mat4 rotateY = mat4(
+
+				 cy  ,  0.0  ,  -sy  ,  0.0  ,
+				0.0  ,  1.0  ,  0.0  ,  0.0  ,
+				 sy  ,  0.0  ,   cy  ,  0.0  ,
+				0.0  ,  0.0  ,  0.0  ,  1.0 
+
+				) ;
+
+				// rotation x
+				float zAngle = radians( z_angle ) ;
+				float cz = cos(zAngle) ;
+				float sz = sin(zAngle) ;
+
+				mat4 rotateZ = mat4 (
+
+				 cz  ,   sz  ,  0.0  ,  0.0  ,
+				-sz  ,   cz  ,  0.0  ,  0.0  ,
+				0.0  ,  0.0  ,  1.0  ,  0.0  ,
+				0.0  ,  0.0  ,  0.0  ,  1.0 
+
+				) ;
+
+				mat4 translation = mat4(
+
+				1.0   ,  0.0   ,  0.0   ,  0.0  ,
+				0.0   ,  1.0   ,  0.0   ,  0.0  ,
+				0.0   ,  0.0   ,  1.0   ,  0.0  ,
+				x_loc ,  y_loc ,  z_loc ,  1.0 
+
+				) ;
+
+
+				// position
+				vec4 pos012 = vertex012 ;
+				vec4 pos120 = shufle120 ;
+				vec4 pos201 = shufle201 ;
+
+				mat4 rotation = rotateX * rotateY * rotateZ ;
+				mat4 rot_translate = translation * rotation ;
+
+				vec4 pos = pos012 + pos120 + pos201 - pos120 - pos201 ;
+				pos012 = rot_translate * pos012 ; 
+				pos120 = rot_translate * pos120 ; 
+				pos201 = rot_translate * pos201 ; 
+
+				vec3 lineA = pos120.xyz - pos012.xyz ;
+				vec3 lineB = pos120.xyz - pos201.xyz ;
+				
+				vec3 normalAB = normalize ( cross( lineA , lineB ) ) ;
+
+				vec3 lamp = vec3( 0.0 , 0.0 , 1.0 ) ;
+
+				float cosLamp = dot( lamp , normalAB ) ;
+				
+				if ( cosLamp < 0.0 ) {
+					
+					cosLamp *= -1.0 ;
+				}
+
+				if ( cosLamp < 0.2 ) {
+
+					cosLamp = 0.2 ;
+				}
+
+
+				// [ near , far ]
+				// [ -1 , 0 , 1 ] -> [ 1 , 0.5 , 0 ]
+				perspective = ( 1.0 - pos012.z ) / 2.0 ;
+				// if z = -1 , perspective = 1
+				//    z =  0 , perspective = 0.5
+				//    z =  1 , perspective = 0
+				pos012.w = 1.0 / perspective ;
+
+				// set position 
+				gl_Position = pos012 ;
+
+				// pass fragment data
+				v_fragment = fragment ;
+				v_perspective = perspective ;
+				v_cosLamp = cosLamp ;
+			}
+
+		</script>
+		<script id="fs_lamp" type="x-shader/x-fragment">
+
+			precision mediump float ;
+
+			varying vec4 v_fragment ;
+			varying float v_perspective ;
+			varying float v_cosLamp ;
+
+			void main ( void ) {
+
+				//vec4 red = vec4( 1.0 , 0.0 , 0.0 , 1.0 ) ;
+				// each channel
+				float red = v_fragment.r * v_cosLamp ;
+				float green = v_fragment.g * v_cosLamp ;
+				float blue = v_fragment.b * v_cosLamp ;
+				//float alpha = v_fragment.a;
+				float alpha = v_perspective ;
+
+				gl_FragColor = vec4( red , green , blue , alpha ) ;
+			}
+
+		</script>
+
+		<script src="./j01_ngl.js"></script>
+
+		<script src="./j02_dataUtil.js"></script>
+		<script src="./j03_mat4x4.js"></script>
+
+
+		<script src="./j20_objPyramid.js"></script>
+		<script src="./j21_objCube.js"></script>
+		<script src="./j21_objCubeByPlane.js"></script>
+		<script src="./j22_objPointedCube.js"></script>
+
+		<!--
+		<script src="./j31_shader_basic.js"></script>
+		-->
+		<!--
+		<script src="./j32_shader_orthographic.js"></script>
+		-->
+		<!--
+		<script src="./j34_shader_perspective.js"></script>
+		-->
+
+		<script src="./j36_shader_lamp.js"></script>
+		<script src="./j40_vecUtil.js"></script>
+		<!--
+		<script src="./j42_cpuLamp.js"></script>
+		-->
+
+		<script src="./l00_app.js"></script>
+
+	</body>
+</html>
